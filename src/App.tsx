@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import {
   ReactFlow,
   applyNodeChanges,
@@ -8,9 +8,11 @@ import {
   type EdgeChange,
   type NodeChange,
   type Node,
+  type XYPosition,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./App.css";
+import NodesPanel from "./components/NodesPanel";
 
 const initialNodes: Node[] = [
   { id: "n1", position: { x: 0, y: 0 }, data: { label: "Node 1" } },
@@ -18,9 +20,14 @@ const initialNodes: Node[] = [
 ];
 const initialEdges = [{ id: "n1-n2", source: "n1", target: "n2" }];
 
+let nodeId = 0;
+const getId = () => `node_${nodeId++}`;
+
 function App() {
   const [nodes, setNodes] = useState(initialNodes);
   const [edges, setEdges] = useState(initialEdges);
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) =>
@@ -36,6 +43,42 @@ function App() {
     (params: Connection) =>
       setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot)),
     []
+  );
+
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+
+      const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
+      const type = event.dataTransfer.getData("application/reactflow");
+
+      // Check if the dropped element is a valid node type
+      if (typeof type === "undefined" || !type) {
+        return;
+      }
+
+      if (reactFlowBounds) {
+        const position: XYPosition = reactFlowInstance?.screenToFlowPosition({
+          x: event.clientX - reactFlowBounds.left,
+          y: event.clientY - reactFlowBounds.top,
+        });
+
+        const newNode: Node = {
+          id: getId(),
+          type: "default",
+          position,
+          data: { label: `${type} node` },
+        };
+
+        setNodes((nds) => nds.concat(newNode));
+      }
+    },
+    [reactFlowInstance]
   );
 
   const handleSave = () => {
@@ -63,28 +106,26 @@ function App() {
       {/* Main content area */}
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Canvas area for React Flow */}
-        <div className="flex-1 bg-white border-r border-gray-200 relative">
+        <div
+          className="flex-1 bg-white border-r border-gray-200 relative"
+          ref={reactFlowWrapper}
+        >
           <ReactFlow
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onInit={setReactFlowInstance}
+            onDrop={onDrop}
+            onDragOver={onDragOver}
             fitView
           />
         </div>
 
-        {/* Sidebar for controls and settings */}
-        <aside className="w-full h-50 md:w-75 md:h-auto bg-white border-t md:border-t-0 md:border-l border-gray-200 flex flex-col">
-          <div className="p-5 flex-1">
-            <h3 className="text-lg text-gray-800 mb-4 font-semibold">
-              Controls
-            </h3>
-            <p className="text-gray-500 text-sm leading-6">
-              Drag and drop nodes here
-            </p>
-            {/* TODO: Add node controls and settings panel */}
-          </div>
+        {/* Sidebar - Nodes Panel */}
+        <aside className="w-full h-50 md:w-80 md:h-auto bg-gray-50 border-t md:border-t-0 md:border-l border-gray-200 flex flex-col">
+          <NodesPanel />
         </aside>
       </main>
     </div>

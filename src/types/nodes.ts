@@ -1,3 +1,9 @@
+import MessageNode from "../components/MessageNode";
+
+export const nodeTypes = {
+  message: MessageNode,
+};
+
 export interface NodeTypeDefinition {
   type: string;
   label: string;
@@ -6,6 +12,12 @@ export interface NodeTypeDefinition {
 }
 
 export const NODE_TYPES: NodeTypeDefinition[] = [
+  {
+    type: "message",
+    label: "Message",
+    description: "Send a message to users",
+    icon: "💬",
+  },
   {
     type: "textMessage",
     label: "Text Message",
