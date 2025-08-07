@@ -1,9 +1,3 @@
-import MessageNode from "../components/MessageNode";
-
-export const nodeTypes = {
-  message: MessageNode,
-};
-
 export interface NodeTypeDefinition {
   type: string;
   label: string;

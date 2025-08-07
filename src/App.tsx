@@ -13,15 +13,13 @@ import {
 import "@xyflow/react/dist/style.css";
 import "./App.css";
 import NodesPanel from "./components/NodesPanel";
+import { nodeTypes } from "./components/nodes";
 
-const initialNodes: Node[] = [
-  { id: "n1", position: { x: 0, y: 0 }, data: { label: "Node 1" } },
-  { id: "n2", position: { x: 0, y: 100 }, data: { label: "Node 2" } },
-];
+const initialNodes: Node[] = [];
 const initialEdges = [{ id: "n1-n2", source: "n1", target: "n2" }];
 
 let nodeId = 0;
-const getId = () => `node_${nodeId++}`;
+const getId = () => `node_${++nodeId}`;
 
 function App() {
   const [nodes, setNodes] = useState(initialNodes);
@@ -55,24 +53,29 @@ function App() {
       event.preventDefault();
 
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
-      const type = event.dataTransfer.getData("application/reactflow");
+      const nodeType = event.dataTransfer.getData("application/reactflow");
 
       // Check if the dropped element is a valid node type
-      if (typeof type === "undefined" || !type) {
+      if (typeof nodeType === "undefined" || !nodeType) {
         return;
       }
 
-      if (reactFlowBounds) {
-        const position: XYPosition = reactFlowInstance?.screenToFlowPosition({
+      if (reactFlowBounds && reactFlowInstance) {
+        const position: XYPosition = reactFlowInstance.screenToFlowPosition({
           x: event.clientX - reactFlowBounds.left,
           y: event.clientY - reactFlowBounds.top,
         });
 
+        // Create new node with unique ID and positioned where dropped
         const newNode: Node = {
           id: getId(),
-          type: "default",
+          type: nodeType, // Use the actual node type from drag data
           position,
-          data: { label: `${type} node` },
+          data: {
+            label: `${nodeType.charAt(0).toUpperCase() + nodeType.slice(1)}`,
+            text: "", // Default empty text as requested
+            message: "", // For message nodes
+          },
         };
 
         setNodes((nds) => nds.concat(newNode));
@@ -113,6 +116,7 @@ function App() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
+            nodeTypes={nodeTypes} // Add custom node types
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
