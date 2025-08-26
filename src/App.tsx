@@ -9,14 +9,18 @@ import {
   type NodeChange,
   type Node,
   type XYPosition,
+  type Edge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import "./App.css";
-import NodesPanel from "./components/NodesPanel";
+import { NodesPanel } from "./components/NodesPanel";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { nodeTypes } from "./components/nodes";
+import { useToast } from "@/hooks/use-toast";
+import { Toaster } from "@/components/ui/toaster";
 
 const initialNodes: Node[] = [];
-const initialEdges = [{ id: "n1-n2", source: "n1", target: "n2" }];
+const initialEdges: Edge[] = []; // Remove invalid initial edge
 
 let nodeId = 0;
 const getId = () => `node_${++nodeId}`;
@@ -24,8 +28,10 @@ const getId = () => `node_${++nodeId}`;
 function App() {
   const [nodes, setNodes] = useState(initialNodes);
   const [edges, setEdges] = useState(initialEdges);
+  const [selectedNode, setSelectedNode] = useState<Node | null>(null);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const [reactFlowInstance, setReactFlowInstance] = useState<any>(null);
+  const { toast } = useToast();
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) =>
@@ -37,11 +43,66 @@ function App() {
       setEdges((edgesSnapshot) => applyEdgeChanges(changes, edgesSnapshot)),
     []
   );
+
+  // Enhanced onConnect with validation rules
   const onConnect = useCallback(
-    (params: Connection) =>
-      setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot)),
-    []
+    (params: Connection) => {
+      // Validation: Only one edge from any source handle is permitted
+      const existingEdgeFromSource = edges.find(
+        (edge) =>
+          edge.source === params.source &&
+          edge.sourceHandle === params.sourceHandle
+      );
+
+      if (existingEdgeFromSource) {
+        console.warn(
+          "Connection rejected: Only one edge per source handle is allowed"
+        );
+        return; // Reject the connection
+      }
+
+      // Validation: Prevent self-connections
+      if (params.source === params.target) {
+        console.warn("Connection rejected: Self-connections are not allowed");
+        return;
+      }
+
+      // If validation passes, add the edge
+      setEdges((edgesSnapshot) => addEdge(params, edgesSnapshot));
+      console.log("Connection added:", params);
+    },
+    [edges]
   );
+
+  // Handle node selection
+  const onNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+    event.stopPropagation();
+    setSelectedNode(node);
+  }, []);
+
+  // Handle canvas click to clear selection
+  const onPaneClick = useCallback(() => {
+    setSelectedNode(null);
+  }, []);
+
+  // Handle node updates from settings panel
+  const onNodeUpdate = useCallback((nodeId: string, newData: any) => {
+    setNodes((nds) =>
+      nds.map((node) =>
+        node.id === nodeId ? { ...node, data: newData } : node
+      )
+    );
+
+    // Update selected node to reflect changes
+    setSelectedNode((selected) =>
+      selected?.id === nodeId ? { ...selected, data: newData } : selected
+    );
+  }, []);
+
+  // Clear selection handler
+  const onClearSelection = useCallback(() => {
+    setSelectedNode(null);
+  }, []);
 
   const onDragOver = useCallback((event: React.DragEvent) => {
     event.preventDefault();
@@ -85,10 +146,42 @@ function App() {
   );
 
   const handleSave = () => {
-    // TODO: Implement save functionality
-    console.log("Save button clicked");
-    console.log("Nodes:", nodes);
-    console.log("Edges:", edges);
+    // Check if there are more than one node
+    if (nodes.length > 1) {
+      // Find nodes with empty target handles (no incoming connections)
+      const nodesWithEmptyTargets = nodes.filter((node) => {
+        // Check if this node has any incoming edges
+        const hasIncomingEdge = edges.some((edge) => edge.target === node.id);
+        return !hasIncomingEdge;
+      });
+
+      // If more than one node has empty target handles, show error
+      if (nodesWithEmptyTargets.length > 1) {
+        toast({
+          variant: "destructive",
+          title: "Cannot save flow",
+          description: `Error: ${nodesWithEmptyTargets.length} nodes have empty target handles. Only one node can have an empty target handle.`,
+        });
+        return;
+      }
+    }
+
+    // If validation passes, save the flow
+    const flowData = {
+      nodes,
+      edges,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Save to localStorage (you can replace this with your preferred storage method)
+    localStorage.setItem("chatbot-flow", JSON.stringify(flowData));
+
+    console.log("Flow saved successfully:", flowData);
+
+    toast({
+      title: "Flow saved",
+      description: "Your chatbot flow has been saved successfully.",
+    });
   };
 
   return (
@@ -116,10 +209,12 @@ function App() {
           <ReactFlow
             nodes={nodes}
             edges={edges}
-            nodeTypes={nodeTypes} // Add custom node types
+            nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onNodeClick={onNodeClick}
+            onPaneClick={onPaneClick}
             onInit={setReactFlowInstance}
             onDrop={onDrop}
             onDragOver={onDragOver}
@@ -127,11 +222,20 @@ function App() {
           />
         </div>
 
-        {/* Sidebar - Nodes Panel */}
+        {/* Sidebar - Dynamic Panel */}
         <aside className="w-full h-50 md:w-80 md:h-auto bg-gray-50 border-t md:border-t-0 md:border-l border-gray-200 flex flex-col">
-          <NodesPanel />
+          {selectedNode ? (
+            <SettingsPanel
+              selectedNode={selectedNode}
+              onNodeUpdate={onNodeUpdate}
+              onClearSelection={onClearSelection}
+            />
+          ) : (
+            <NodesPanel />
+          )}
         </aside>
       </main>
+      <Toaster />
     </div>
   );
 }

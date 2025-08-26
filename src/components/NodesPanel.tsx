@@ -37,7 +37,7 @@ const DraggableNodeCard: React.FC<DraggableNodeCardProps> = ({ nodeType }) => {
   );
 };
 
-const NodesPanel: React.FC<NodesPanelProps> = ({ className = "" }) => {
+export const NodesPanel: React.FC<NodesPanelProps> = ({ className = "" }) => {
   return (
     <div className={`flex flex-col ${className}`}>
       {/* Panel Header */}
@@ -86,5 +86,3 @@ const NodesPanel: React.FC<NodesPanelProps> = ({ className = "" }) => {
     </div>
   );
 };
-
-export default NodesPanel;
